@@ -91,48 +91,60 @@ class SearchableClassMappingConfigurator {
         Map<String, Object> indexSettings = buildIndexSettings(esConfig)
 
         LOG.debug("Index settings are " + indexSettings)
-        
-        LOG.debug("Installing mappings...")
-        Map<SearchableClassMapping, Map> elasticMappings = buildElasticMappings(mappings)
-        LOG.debug "elasticMappings are ${elasticMappings.keySet()}"
 
-        MappingMigrationStrategy migrationStrategy = esConfig?.migration?.strategy ? MappingMigrationStrategy.valueOf(esConfig.migration.strategy) : none
-        Set<String> installedIndices = []
-        def mappingConflicts = []
-        for (SearchableClassMapping scm : mappings) {
-            if (scm.isRoot()) {
+        boolean isElasticUp = true
+        try {
+            LOG.debug("Waiting at least yellow status on cluster")
+            es.waitForClusterYellowStatus()
+        } catch (Exception e) {
+            // ignore any exceptions due to non-existing index.
+            LOG.debug('Cluster health', e)
+            isElasticUp = false
+        }
 
-                Map elasticMapping = elasticMappings[scm]
+        if (isElasticUp) {
+            LOG.debug("Installing mappings...")
+            Map<SearchableClassMapping, Map> elasticMappings = buildElasticMappings(mappings)
+            LOG.debug "elasticMappings are ${elasticMappings.keySet()}"
 
-                // todo wait for success, maybe retry.
-                // If the index was not created, create it
-                if (!installedIndices.contains(scm.indexName)) {
+            MappingMigrationStrategy migrationStrategy = esConfig?.migration?.strategy ? MappingMigrationStrategy.valueOf(esConfig.migration.strategy) : none
+            Set<String> installedIndices = []
+            def mappingConflicts = []
+            for (SearchableClassMapping scm : mappings) {
+                if (scm.isRoot()) {
+
+                    Map elasticMapping = elasticMappings[scm]
+
+                    // todo wait for success, maybe retry.
+                    // If the index was not created, create it
+                    if (!installedIndices.contains(scm.indexName)) {
+                        try {
+                            createIndexWithReadAndWrite(migrationStrategy, scm, indexSettings)
+                            installedIndices.add(scm.indexName)
+                        } catch (RemoteTransportException rte) {
+                            LOG.debug(rte.getMessage())
+                        }
+                    }
+
+                    // Install mapping
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Installing mapping [" + scm.elasticTypeName + "] => " + elasticMapping)
+                    }
                     try {
-                        createIndexWithReadAndWrite(migrationStrategy, scm, indexSettings)
-                        installedIndices.add(scm.indexName)
-                    } catch (RemoteTransportException rte) {
-                        LOG.debug(rte.getMessage())
+                        es.createMapping scm.indexName, scm.elasticTypeName, elasticMapping
+                    } catch (MergeMappingException e) {
+                        LOG.warn("Could not install mapping ${scm.indexName}/${scm.elasticTypeName} due to ${e.message}, migrations needed")
+                        mappingConflicts << new MappingConflict(scm: scm, exception: e)
                     }
                 }
-
-                // Install mapping
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("Installing mapping [" + scm.elasticTypeName + "] => " + elasticMapping)
-                }
-                try {
-                    es.createMapping scm.indexName, scm.elasticTypeName, elasticMapping
-                } catch (MergeMappingException e) {
-                    LOG.warn("Could not install mapping ${scm.indexName}/${scm.elasticTypeName} due to ${e.message}, migrations needed")
-                    mappingConflicts << new MappingConflict(scm: scm, exception: e)
-                }
             }
-        }
-        if(mappingConflicts) {
-            LOG.info("Applying migrations ...")
-            mmm.applyMigrations(migrationStrategy, elasticMappings, mappingConflicts, indexSettings)
-        }
+            if (mappingConflicts) {
+                LOG.info("Applying migrations ...")
+                mmm.applyMigrations(migrationStrategy, elasticMappings, mappingConflicts, indexSettings)
+            }
 
-        es.waitForClusterYellowStatus()
+            es.waitForClusterYellowStatus()
+        }
     }
 
 
@@ -174,8 +186,29 @@ class SearchableClassMappingConfigurator {
                     indexSettings.put("index." + entry.getKey(), entry.getValue())
                 }
             }
+
+            LOG.debug("Retrieved analyzer settings")
+            def analysisMap = [:]
+            recurseConfigSlurperToMap(analysisMap, esConfig.analysis)
+
+            if (analysisMap) {
+                indexSettings.analysis = analysisMap
+            }
         }
         indexSettings
+    }
+
+    private void recurseConfigSlurperToMap(Map map, Map item) {
+        item?.each { entry ->
+            def itemMap = [:]
+
+            if (entry.value instanceof Map) {
+                recurseConfigSlurperToMap(itemMap, entry.value)
+                map[entry.key] = itemMap
+            } else {
+                map[entry.key] = entry.value
+            }
+        }
     }
 
     private Map<SearchableClassMapping, Map> buildElasticMappings(Collection<SearchableClassMapping> mappings) {

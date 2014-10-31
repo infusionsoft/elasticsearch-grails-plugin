@@ -63,8 +63,10 @@ class DomainClassUnmarshaller {
 
             GrailsDomainClassProperty identifier = scm.domainClass.identifier
             Object id = typeConverter.convertIfNecessary(hit.id(), identifier.type)
+            Object version = typeConverter.convertIfNecessary(hit.source['version'], Long.class)
             GroovyObject instance = (GroovyObject) scm.domainClass.newInstance()
             instance.setProperty(identifier.name, id)
+            instance.setProperty('version', version)
 
             def aliasFields = elasticSearchContextHolder.getMappingContext(scm.domainClass).getPropertiesMapping().findResults {
                 if (it.isAlias()) {

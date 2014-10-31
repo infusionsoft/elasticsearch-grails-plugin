@@ -23,7 +23,7 @@ import org.grails.plugins.elasticsearch.ElasticSearchContextHolder
  */
 class SearchableClassPropertyMapping {
 
-    private static final Set<String> SEARCHABLE_MAPPING_OPTIONS = ['boost', 'index', 'analyzer']
+    private static final Set<String> SEARCHABLE_MAPPING_OPTIONS = ['boost', 'index', 'analyzer', 'fields']
     private static final Set<String> SEARCHABLE_SPECIAL_MAPPING_OPTIONS =
             ['component', 'converter', 'reference', 'excludeFromAll', 'maxDepth', 'multi_field', 'parent', 'geoPoint',
              'alias']
