@@ -101,6 +101,24 @@ class SearchableClassMappingConfigurator {
                     settings.put("index." + entry.getKey(), entry.getValue())
                 }
             }
+
+            if(esConfig.analysis) {
+                LOG.debug("Retrieved analyzer settings")
+
+                def analysisMap = [:]
+
+                if(esConfig.analysis.analyzer) {
+                    analysisMap.analyzer = [:]
+
+                    esConfig.analysis.analyzer.each {
+                        analysisMap.analyzer[it.key] = [:]
+                        analysisMap.analyzer[it.key].tokenizer = it.value.tokenizer
+                        analysisMap.analyzer[it.key].filter = it.value.filter
+                    }
+
+                    settings.analysis = analysisMap
+                }
+            }
         }
         LOG.debug("Installing mappings...")
         for (SearchableClassMapping scm : mappings) {
