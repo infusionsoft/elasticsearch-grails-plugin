@@ -102,12 +102,12 @@ class SearchableClassMappingConfigurator {
                 }
             }
 
-            if(esConfig.analysis) {
+            if (esConfig.analysis) {
                 LOG.debug("Retrieved analyzer settings")
 
                 def analysisMap = [:]
 
-                if(esConfig.analysis.analyzer) {
+                if (esConfig.analysis.analyzer) {
                     analysisMap.analyzer = [:]
 
                     esConfig.analysis.analyzer.each {
@@ -120,57 +120,70 @@ class SearchableClassMappingConfigurator {
                 }
             }
         }
-        LOG.debug("Installing mappings...")
-        for (SearchableClassMapping scm : mappings) {
-            if (scm.isRoot()) {
-                Map elasticMapping = ElasticSearchMappingFactory.getElasticMapping(scm)
 
-                // todo wait for success, maybe retry.
-                // If the index does not exist, create it
-                if (!installedIndices.contains(scm.getIndexName())) {
-                    LOG.debug("Index ${scm.indexName} does not exists, initiating creation...")
-                    try {
-                        // Could be blocked on index level, thus wait.
-                        try {
-                            LOG.debug("Waiting at least yellow status on ${scm.indexName}")
-                            elasticSearchClient.admin().cluster().prepareHealth(scm.getIndexName())
-                                    .setWaitForYellowStatus()
-                                    .execute().actionGet()
-                        } catch (Exception e) {
-                            // ignore any exceptions due to non-existing index.
-                            LOG.debug('Index health', e)
-                        }
-                        elasticSearchClient.admin().indices().prepareCreate(scm.getIndexName())
-                                .setSettings(settings)
-                                .execute().actionGet()
-                        installedIndices.add(scm.getIndexName())
-                        LOG.debug(elasticMapping.toString())
-
-                        // If the index already exists, ignore the exception
-                    } catch (IndexAlreadyExistsException iaee) {
-                        LOG.debug("Index ${scm.indexName} already exists, skip index creation.")
-                    } catch (RemoteTransportException rte) {
-                        LOG.debug(rte.getMessage())
-                    }
-                }
-
-                // Install mapping
-                // todo when conflict is detected, delete old mapping (this will delete all indexes as well, so should warn user)
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("[" + scm.getElasticTypeName() + "] => " + elasticMapping)
-                }
-                elasticSearchClient.admin().indices().putMapping(
-                        new PutMappingRequest(scm.getIndexName())
-                                .type(scm.getElasticTypeName())
-                                .source(elasticMapping)
-                ).actionGet()
-            }
-
+        boolean isElasticUp = true
+        try {
+            LOG.debug("Waiting at least yellow status on cluster")
+            ClusterHealthResponse response = elasticSearchClient.admin().cluster().health(
+                    new ClusterHealthRequest([] as String[]).waitForYellowStatus()).actionGet()
+            LOG.debug("Cluster status: ${response.status}")
+        } catch (Exception e) {
+            // ignore any exceptions due to non-existing index.
+            LOG.debug('Cluster health', e)
+            isElasticUp = false
         }
 
-        ClusterHealthResponse response = elasticSearchClient.admin().cluster().health(
-                new ClusterHealthRequest([] as String[]).waitForYellowStatus()).actionGet()
-        LOG.debug("Cluster status: ${response.status}")
+        if (isElasticUp) {
+            LOG.debug("Installing mappings...")
+            for (SearchableClassMapping scm : mappings) {
+                if (scm.isRoot()) {
+                    Map elasticMapping = ElasticSearchMappingFactory.getElasticMapping(scm)
+
+                    // todo wait for success, maybe retry.
+                    // If the index does not exist, create it
+                    if (!installedIndices.contains(scm.getIndexName())) {
+                        LOG.debug("Index ${scm.indexName} does not exists, initiating creation...")
+                        try {
+                            // Could be blocked on index level, thus wait.
+                            try {
+                                LOG.debug("Waiting at least yellow status on ${scm.indexName}")
+                                elasticSearchClient.admin().cluster().prepareHealth(scm.getIndexName())
+                                        .setWaitForYellowStatus()
+                                        .execute().actionGet()
+                            } catch (Exception e) {
+                                // ignore any exceptions due to non-existing index.
+                                LOG.debug('Index health', e)
+                            }
+                            elasticSearchClient.admin().indices().prepareCreate(scm.getIndexName())
+                                    .setSettings(settings)
+                                    .execute().actionGet()
+                            installedIndices.add(scm.getIndexName())
+                            LOG.debug(elasticMapping.toString())
+
+                            // If the index already exists, ignore the exception
+                        } catch (IndexAlreadyExistsException iaee) {
+                            LOG.debug("Index ${scm.indexName} already exists, skip index creation.")
+                        } catch (RemoteTransportException rte) {
+                            LOG.debug(rte.getMessage())
+                        }
+                    }
+
+                    // Install mapping
+                    // todo when conflict is detected, delete old mapping (this will delete all indexes as well, so should warn user)
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("[" + scm.getElasticTypeName() + "] => " + elasticMapping)
+                    }
+                    elasticSearchClient.admin().indices().putMapping(
+                            new PutMappingRequest(scm.getIndexName())
+                                    .type(scm.getElasticTypeName())
+                                    .source(elasticMapping)
+                    ).actionGet()
+                }
+            }
+            ClusterHealthResponse response = elasticSearchClient.admin().cluster().health(
+                    new ClusterHealthRequest([] as String[]).waitForYellowStatus()).actionGet()
+            LOG.debug("Cluster status: ${response.status}")
+        }
     }
 
     void setElasticSearchContext(ElasticSearchContextHolder elasticSearchContext) {
