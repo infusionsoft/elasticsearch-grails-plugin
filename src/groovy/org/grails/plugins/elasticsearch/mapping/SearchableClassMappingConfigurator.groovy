@@ -110,10 +110,11 @@ class SearchableClassMappingConfigurator {
                 if (esConfig.analysis.analyzer) {
                     analysisMap.analyzer = [:]
 
-                    esConfig.analysis.analyzer.each {
-                        analysisMap.analyzer[it.key] = [:]
-                        analysisMap.analyzer[it.key].tokenizer = it.value.tokenizer
-                        analysisMap.analyzer[it.key].filter = it.value.filter
+                    esConfig.analysis.analyzer.each { analyzer ->
+                        analysisMap.analyzer[analyzer.key] = [:]
+                        analyzer.value.each { prop ->
+                            analysisMap.analyzer[analyzer.key][prop.key] = prop.value
+                        }
                     }
 
                     settings.analysis = analysisMap
