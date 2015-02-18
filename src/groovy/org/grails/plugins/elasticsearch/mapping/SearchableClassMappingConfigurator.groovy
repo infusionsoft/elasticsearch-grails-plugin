@@ -81,6 +81,19 @@ class SearchableClassMappingConfigurator {
         return mappings
     }
 
+    private void recurseConfigSlurperToMap(Map map, Map item) {
+        item.each { entry ->
+            def itemMap = [:]
+
+            if (entry.value instanceof Map) {
+                recurseConfigSlurperToMap(itemMap, entry.value)
+                map[entry.key] = itemMap
+            } else {
+                map[entry.key] = entry.value
+            }
+        }
+    }
+
     /**
      * Resolve the ElasticSearch mapping from the static "searchable" property (closure or boolean) in domain classes
      * @param mappings searchable class mappings to be install.
@@ -102,23 +115,12 @@ class SearchableClassMappingConfigurator {
                 }
             }
 
-            if (esConfig.analysis) {
-                LOG.debug("Retrieved analyzer settings")
+            LOG.debug("Retrieved analyzer settings")
+            def analysisMap = [:]
+            recurseConfigSlurperToMap(analysisMap, esConfig.analysis)
 
-                def analysisMap = [:]
-
-                if (esConfig.analysis.analyzer) {
-                    analysisMap.analyzer = [:]
-
-                    esConfig.analysis.analyzer.each { analyzer ->
-                        analysisMap.analyzer[analyzer.key] = [:]
-                        analyzer.value.each { prop ->
-                            analysisMap.analyzer[analyzer.key][prop.key] = prop.value
-                        }
-                    }
-
-                    settings.analysis = analysisMap
-                }
+            if (analysisMap) {
+                settings.analysis = analysisMap
             }
         }
 
