@@ -1,9 +1,8 @@
 grails.project.work.dir = 'target'
 grails.project.docs.output.dir = 'docs' // for the gh-pages branch
 
-grails.project.repos.default = "builds"
-grails.project.repos.snapshots.url = "https://scm.infusiontest.com/nexus/content/repositories/snapshots/"
-grails.project.repos.builds.url = "https://scm.infusiontest.com/nexus/content/repositories/builds/"
+grails.project.repos.default = 'external-artifacts'
+grails.project.repos.'external-artifacts'.url="https://infusionsoft.jfrog.io/infusionsoft/third-party-builds/"
 
 grails.project.dependency.resolver = 'maven' // or ivy
 grails.project.dependency.resolution = {
@@ -45,7 +44,7 @@ grails.project.dependency.resolution = {
     }
 
     plugins {
-        build ':release:3.0.1', ':rest-client-builder:2.0.3', {
+        build ':release:3.1.2', ':rest-client-builder:2.0.3', {
             export = false
         }
 
