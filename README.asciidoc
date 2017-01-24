@@ -6,6 +6,17 @@ An Elasticsearch plugin for Grails; This project is a fork based on the great wo
 
 The original Elasticsearch plugin relies on *Hibernate-specific* GORM components, thus rendering it unusable if you back your Grails application by any other database.
 
+=== How can I publish the plugin?
+
+Add entries in your settings.groovy:
+
+----
+grails.project.repos.'external-artifacts'.username = "your username"
+grails.project.repos.'external-artifacts'.password = "your API token"
+----
+
+Then run `grailsw maven-deploy`.  If you get access denied, make sure you have deploy permissions on artifactory.
+
 === How can I obtain the plugin?
 
 image:https://travis-ci.org/noamt/elasticsearch-grails-plugin.svg?branch=master["Build Status", link="https://travis-ci.org/noamt/elasticsearch-grails-plugin"]
