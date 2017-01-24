@@ -16,6 +16,7 @@
 
 package org.grails.plugins.elasticsearch.conversion.unmarshall
 
+import grails.validation.ValidationException
 import org.codehaus.groovy.grails.commons.*
 import org.codehaus.groovy.grails.web.binding.DatabindingApi
 import org.codehaus.groovy.runtime.DefaultGroovyMethods
@@ -95,6 +96,10 @@ class DomainClassUnmarshaller {
                 }
             }
             new DatabindingApi().setProperties(instance, rebuiltProperties)
+
+            if (instance.hasErrors()) {
+                throw new ValidationException("Error while binding from Elasticsearch search result", instance.errors)
+            }
 
             results << instance
         }
